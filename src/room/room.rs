@@ -238,11 +238,13 @@ impl Room {
             return Err(error::Error::AlreadyStarted);
         }
 
-        let game = self.option.game_type.new(self.players.clone());
+        let game_ = self.option.game_type.new(self.players.clone());
 
-        //*game = Some(self.option.game_type.new(self.players.clone()));
-        //game.run();
+        if let Err(_) = game_.run().await {
+            return Err(error::Error::CommunicationError);
+        }
 
+        *game = Some(game_);
         Ok(())
     }
 }

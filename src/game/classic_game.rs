@@ -11,30 +11,28 @@ use super::event::Event;
 
 use super::Game;
 
+type Players = Vec<Option<Arc<Session>>>;
+
 pub struct ClassicGame {
-    players: Arc<Mutex<Vec<Option<Arc<Session>>>>>,
     tx: Arc<mpsc::Sender<Event>>,
-    timer: Timer,
 }
 
 impl ClassicGame {
-    pub fn new(players: Arc<Mutex<Vec<Option<Arc<Session>>>>>) -> ClassicGame {
+    pub fn new(players: Arc<Mutex<Players>>) -> ClassicGame {
         let (tx, rx) = mpsc::channel(32);
 
         tokio::spawn(async move {
-            if let Err(e) = Self::event_loop(rx).await {
+            if let Err(e) = Self::event_loop(players, rx).await {
                 eprintln!("ClassicGame::event_loop error: {}", e);
             }
         });
 
         ClassicGame {
-            players,
             tx: Arc::new(tx),
-            timer: Timer::new(),
         }
     }
 
-    async fn event_loop(mut rx: mpsc::Receiver<Event>) -> Result<(), Box<dyn Error>> {
+    async fn event_loop(players: Arc<Mutex<Players>>, mut rx: mpsc::Receiver<Event>) -> Result<(), Box<dyn Error>> {
         loop {
             if let Some(event) = rx.recv().await {
                 match event {
@@ -53,7 +51,7 @@ impl ClassicGame {
 
 #[async_trait]
 impl Game for ClassicGame {
-    async fn run(&mut self) -> Result<(), Box<dyn Error>> {
+    async fn run(&self) -> Result<(), Box<dyn Error>> {
         self.tx.send(Event::TimeChanged(Time::Night)).await?;
 
         Ok(())

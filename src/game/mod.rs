@@ -17,7 +17,7 @@ pub enum GameType {
 
 #[async_trait]
 pub trait Game {
-    async fn run(&mut self) -> Result<(), Box<dyn Error>>;
+    async fn run(&self) -> Result<(), Box<dyn Error>>;
 }
 
 impl GameType {
