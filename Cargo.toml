@@ -1,0 +1,11 @@
+[package]
+name = "mafia-server-rust"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { version = "1.39.1", features = ["full"] }
+native-tls = "0.2.12"
+tokio-native-tls = "0.3.1"
+lazy_static = "1.5.0"
+async-trait = "0.1.81"

@@ -1,0 +1,40 @@
+pub mod string;
+pub mod skill;
+
+pub const HELLO: i32 = 1;
+pub const NICKNAME: i32 = 100;
+pub const ERROR: i32 = 2147483647;
+pub const PING: i32 = 100000000;
+pub const PONG: i32 = 100000001;
+
+pub const ROOM_LIST: i32 = 10000;
+pub const CREATE_ROOM: i32 = 10001;
+pub const JOIN_ROOM: i32 = 10002;
+pub const LEAVE_ROOM: i32 = 10003;
+pub const CHAT: i32 = 10004;
+pub const SYSTEM_CHAT: i32 = 10005;
+pub const PLAYER_JOINED: i32 = 10006;
+pub const PLAYER_LEFT: i32 = 10007;
+pub const PLAYER_LIST: i32 = 10008;
+pub const MODERATOR_CHANGED: i32 = 10009;
+pub const START_GAME: i32 = 10010;
+pub const INDEX: i32 = 10011;
+pub const JOIN_PASSWORD_ROOM: i32 = 10012;
+
+pub const JOB: i32 = 20000;
+pub const TIME_CHANGED: i32 = 20001;
+pub const VOTE_RESULT: i32 = 20002;
+pub const FINAL_OBJECTION: i32 = 20003;
+pub const VOTE: i32 = 20004;
+pub const YESNO_VOTE: i32 = 20005;
+pub const VOTE_DEAD: i32 = 20006;
+pub const GAME_FINISHED: i32 = 20007;
+pub const HAND: i32 = 20008;
+pub const SKILL: i32 = 20009;
+pub const INCREASE_TIME: i32 = 20010;
+pub const DECREASE_TIME: i32 = 20011;
+pub const MEMO: i32 = 20012;
+pub const CHANGE_HAND: i32 = 20013;
+pub const STATUS_CHANGED: i32 = 20014;
+pub const OTHER_HAND: i32 = 20015;
+pub const MEMO_CULTED: i32 = 20016;

@@ -1,0 +1,14 @@
+pub const ROOM_SIZE_IS_INVALID: i32 = 0;
+pub const NICKNAME_ALREADY_EXISTS: i32 = 1;
+pub const PLAYER_JOINED: i32 = 2;
+pub const PLAYER_LEFT: i32 = 3;
+pub const ROOM_DOES_NOT_EXIST: i32 = 4;
+pub const ROOM_IS_FULL: i32 = 5;
+pub const MODERATOR_CHANGED: i32 = 6;
+pub const PLAYER_NOT_ENOUGH: i32 = 7;
+pub const YOUR_JOB: i32 = 8;
+pub const TIME_HAS_COME: i32 = 9;
+pub const CANT_REPORT_FIRST_DAY: i32 = 16;
+pub const INVALID_NICKNAME: i32 = 17;
+pub const INVALID_PASSWORD: i32 = 19;
+pub const DIRTY_WORD_NICKNAME: i32 = 20;
