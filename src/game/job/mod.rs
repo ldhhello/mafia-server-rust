@@ -3,6 +3,7 @@ use std::fmt::{Display, Formatter};
 pub mod job;
 pub mod option;
 
+#[derive(Clone, Copy, Debug)]
 pub enum JobList {
     None,
     Mafia, Police, Doctor, Special, Assist, Cult,
@@ -23,6 +24,10 @@ pub enum JobList {
     Administrator /* 공무원 */, Cabal /* 비밀결사 */,
     Paparazzi /* 파파라치 */,
     Fanatic /* 광신도 */
+}
+
+impl Default for JobList {
+    fn default() -> Self { JobList::None }
 }
 
 impl Display for JobList {

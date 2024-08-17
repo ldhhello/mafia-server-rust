@@ -92,7 +92,24 @@ impl Room {
                 let session = session.clone();
                 tokio::spawn(async move {
                     if let Err(e) = session.write_packet(packet).await {
-                        println!("Error while broadcasting: {}", e);
+                        eprintln!("Error while broadcasting: {}", e);
+                    }
+                });
+            }
+        });
+    }
+    async fn broadcast_if(players: &Vec<Option<Arc<Session>>>, packet: Packet, condition: &(dyn Fn(usize, &Arc<Session>) -> bool)) {
+        players.iter().enumerate().for_each(|(idx, session)| {
+            if let Some(session) = session {
+                if !condition(idx, session) {
+                    return;
+                }
+
+                let packet = packet.clone();
+                let session = session.clone();
+                tokio::spawn(async move {
+                    if let Err(e) = session.write_packet(packet).await {
+                        eprintln!("Error while broadcasting: {}", e);
                     }
                 });
             }
