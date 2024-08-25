@@ -8,6 +8,8 @@ pub mod option;
 
 pub mod mafia;
 
+mod default_chat;
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum JobList {
     None,
@@ -15,7 +17,7 @@ pub enum JobList {
     Citizen, Soldier, Politician, Shaman, Reporter,
     Gangster, Detective, Ghoul, Terrorist, Priest,
     Magician, Hacker, Prophet, Judge, Nurse,
-    Mentalist, Couple, 
+    Mentalist, Couple,
     Villain, Spy, Beastman, Madam, Thief,
     Scientist, Witch, Frog,
 
@@ -92,6 +94,7 @@ impl Display for JobList {
     }
 }
 
+#[derive(PartialEq)]
 pub enum Team {
     MafiaTeam,
     CitizenTeam,

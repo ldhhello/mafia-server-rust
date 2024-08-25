@@ -1,4 +1,6 @@
-use crate::{game::{self, job::option::JobStatus}, room::room::ChatType};
+use crate::{game::{self, classic_game_status::Status, job::{default_chat::chat_default, job::ChatFn, option::JobStatus}}, room::room::ChatType};
+
+use crate::game::time::Time;
 
 use super::super::{job::Job, option::{HandType, JobOption}, JobList, Team};
 
@@ -34,9 +36,25 @@ impl Job for Mafia {
         todo!()
     }
 
-    fn chat(&self, message: &String) -> Box<dyn Send + Fn(&Box<dyn Job + Send>) -> ChatType> {
-        Box::new(|job| {
-            ChatType::Mafia
+    fn chat(&self, time: Time, my_status: &Status) -> ChatFn {
+        if let Some(chat_fn) = chat_default(time, my_status) {
+            return chat_fn;
+        }
+
+        if time == Time::Night {
+            return Box::new(|job, status| {
+                if job.option().job_id == JobList::Mafia ||
+                (job.option().team == Team::MafiaTeam && status.connected) {
+                    ChatType::Mafia
+                }
+                else {
+                    ChatType::Null
+                }
+            });
+        }
+
+        return Box::new(|_, _| {
+            ChatType::Null
         })
     }
 }

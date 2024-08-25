@@ -1,7 +1,11 @@
+use crate::game::classic_game_status::Status;
 use crate::room::room::ChatType;
 
 use super::option::{JobOption, JobStatus};
 use super::super::event::Event;
+use crate::game::time::Time;
+
+pub type ChatFn = Box<dyn Send + Fn(&Box<dyn Job + Send>, &Status) -> ChatType>;
 
 // trait Job : 게임 내에서의 직업을 가리킨다.
 // 사용자의 입력을 받으면 우선 Job 객체로 전달되며,
@@ -30,5 +34,5 @@ pub trait Job {
     // 채팅을 하면 호출된다.
     // 반환값은 함수인데, 채팅을 받을 사람을 지정하는 함수를 호출한다.
     // 반환값 함수가 true를 리턴하는 사람들에게만 채팅이 전달된다.
-    fn chat(&self, message: &String) -> Box<dyn Send + Fn(&Box<dyn Job + Send>) -> ChatType>;
+    fn chat(&self, time: Time, my_status: &Status) -> ChatFn;
 }

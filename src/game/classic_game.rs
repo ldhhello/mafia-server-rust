@@ -210,13 +210,13 @@ impl ClassicGame {
                     },
                     Event::Chat(idx, msg) => {
                         let my_job = job[idx].as_ref().expect("Sender does not exist");
-                        let chat_fn = my_job.chat(&msg);
+                        let chat_fn = my_job.chat(current_time, &status[idx]);
 
                         let players = players.lock().await;
                         let sender = &players[idx].as_ref().expect("Sender does not exist").nickname;
-                        players.iter().zip(job.iter()).for_each(|(p, j)| {
+                        players.iter().zip(job.iter()).zip(status.iter()).for_each(|((p, j), s)| {
                             if let (Some(p), Some(j)) = (p, j) {
-                                let chat_type = chat_fn(j);
+                                let chat_type = chat_fn(j, s);
                                 if chat_type != ChatType::Null {
                                     let p = p.clone();
                                     let msg = msg.clone();
