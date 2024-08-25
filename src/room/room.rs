@@ -29,6 +29,7 @@ pub enum PlayerType {
     Moderator = 2
 }
 
+#[derive(PartialEq)]
 pub enum ChatType {
     Null = 0,
 	Normal = 1,

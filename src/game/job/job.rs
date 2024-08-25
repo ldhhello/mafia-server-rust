@@ -4,7 +4,7 @@ use super::option::{JobOption, JobStatus};
 use super::super::event::Event;
 
 // trait Job : 게임 내에서의 직업을 가리킨다.
-// 사용자의 입력을 받으면 우선 Job 객체로 전달되며, 
+// 사용자의 입력을 받으면 우선 Job 객체로 전달되며,
 // Job 객체는 Vec<Event>를 반환해야 한다.
 // Job 객체에서 트리거된 이벤트는 메인 로직에서 전부 처리된다.
 
@@ -30,5 +30,5 @@ pub trait Job {
     // 채팅을 하면 호출된다.
     // 반환값은 함수인데, 채팅을 받을 사람을 지정하는 함수를 호출한다.
     // 반환값 함수가 true를 리턴하는 사람들에게만 채팅이 전달된다.
-    fn chat(&self, message: String) -> Box<dyn Fn(&Box<dyn Job>) -> ChatType>;
+    fn chat(&self, message: &String) -> Box<dyn Send + Fn(&Box<dyn Job + Send>) -> ChatType>;
 }

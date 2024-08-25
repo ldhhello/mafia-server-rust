@@ -19,6 +19,7 @@ use mt19937::MT19937;
 use super::error::Error;
 use crate::room::player::Players;
 use super::classic_game_status::Status;
+use crate::room::room::ChatType;
 
 use super::Game;
 
@@ -208,7 +209,29 @@ impl ClassicGame {
                         ])).await;
                     },
                     Event::Chat(idx, msg) => {
-                        todo!();
+                        let my_job = job[idx].as_ref().expect("Sender does not exist");
+                        let chat_fn = my_job.chat(&msg);
+
+                        let players = players.lock().await;
+                        let sender = &players[idx].as_ref().expect("Sender does not exist").nickname;
+                        players.iter().zip(job.iter()).for_each(|(p, j)| {
+                            if let (Some(p), Some(j)) = (p, j) {
+                                let chat_type = chat_fn(j);
+                                if chat_type != ChatType::Null {
+                                    let p = p.clone();
+                                    let msg = msg.clone();
+                                    let sender = sender.clone();
+
+                                    tokio::spawn(async move {
+                                        p.write_packet(Packet::from_data(method::CHAT, vec![
+                                            BinaryData::from_i32(chat_type as i32),
+                                            BinaryData::from_string(sender),
+                                            BinaryData::from_string(msg)
+                                        ])).await.unwrap_or(());
+                                    });
+                                }
+                            }
+                        });
                     }
                 }
             }
