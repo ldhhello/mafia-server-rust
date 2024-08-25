@@ -12,7 +12,8 @@ pub struct Status {
     pub modified_time: bool,
     pub life_status: LifeStatus,
     pub connected: bool, /* 보조 직업의 경우 마피아와 접선했는지 여부, 간호사의 경우 의사와 접선했는지 여부 */
-    pub final_objection: bool,
+    pub lynched: bool,
+    pub hand: usize
 }
 
 impl Status {
@@ -21,14 +22,16 @@ impl Status {
             modified_time: false,
             life_status: LifeStatus::Alive,
             connected: false,
-            final_objection: false
+            lynched: false,
+            hand: usize::max_value(),
         }
     }
     pub fn reset(&mut self, time: Time) {
+        self.hand = usize::max_value();
         match time {
             Time::Null => (),
             Time::Night => {
-                self.final_objection = false;
+                self.lynched = false;
             },
             Time::Day => {
                 self.modified_time = false;

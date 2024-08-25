@@ -6,4 +6,5 @@ pub enum Event {
     IncreaseTime(usize),
     DecreaseTime(usize),
     Chat(usize, String),
+    Hand(usize, usize),
 }

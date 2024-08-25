@@ -8,6 +8,7 @@ use crate::packet::Packet;
 use crate::room::room::Room;
 use crate::timer::Timer;
 use super::job::job::Job;
+use super::job::option::HandType;
 use super::time::Time;
 use tokio::sync::mpsc;
 use super::event::Event;
@@ -232,6 +233,30 @@ impl ClassicGame {
                                 }
                             }
                         });
+                    },
+                    Event::Hand(my_idx, target_idx) => {
+                        if job[target_idx].is_none() {
+                            continue;
+                        }
+
+                        let my_job = job[my_idx].as_ref().expect("Sender does not exist");
+                        let target_job = job[target_idx].as_ref().expect("Target does not exist");
+                        match my_job.option().hand_type {
+                            HandType::NoHand => (),
+                            HandType::FixedHand => {
+
+                            },
+                            HandType::MovingHand => {
+                                if my_job.is_valid_hand(target_job, &status[target_idx], target_idx) {
+                                    status[my_idx].hand = target_idx;
+
+                                    let session = players.lock().await[my_idx].clone().expect("Session does not exist");
+                                    tokio::spawn(async move {
+                                        session.write_packet(Packet::from_data(method::HAND, vec![])).await.unwrap_or(())
+                                    });
+                                }
+                            }
+                        }
                     }
                 }
             }

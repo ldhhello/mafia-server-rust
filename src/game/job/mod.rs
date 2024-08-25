@@ -1,5 +1,6 @@
 use std::fmt::{Display, Formatter};
 
+use citizen::citizen::Citizen;
 use job::Job;
 use mafia::mafia::Mafia;
 
@@ -7,6 +8,7 @@ pub mod job;
 pub mod option;
 
 pub mod mafia;
+pub mod citizen;
 
 mod default_chat;
 
@@ -37,7 +39,8 @@ impl JobList {
     pub fn create_job(self) -> Box<dyn Job + Send> {
         match self {
             Self::Mafia => Box::new(Mafia::new()),
-            _ => Box::new(Mafia::new())
+            Self::Citizen => Box::new(Citizen::new()),
+            _ => Box::new(Citizen::new())
         }
     }
 }
@@ -89,7 +92,7 @@ impl Display for JobList {
             JobList::Cabal => "비밀결사",
             JobList::Paparazzi => "파파라치",
             JobList::Fanatic => "광신도",
-        });
+        })?;
         Ok(())
     }
 }

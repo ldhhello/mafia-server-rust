@@ -1,7 +1,7 @@
 use crate::game::classic_game_status::Status;
 use crate::room::room::ChatType;
 
-use super::option::{JobOption, JobStatus};
+use super::option::JobOption;
 use super::super::event::Event;
 use crate::game::time::Time;
 
@@ -18,11 +18,8 @@ pub trait Job {
     // 다른 직업으로 인한 능력 무효 (ex. 마담) 과는 별개로, 메타데이터는 변하지 않아야 한다.
     fn option(&self) -> JobOption;
 
-    // 현재 나의 상태를 반환한다.
-    fn status<'a>(&'a mut self) -> &'a mut JobStatus;
-
     // 유동 손 직업일 경우 호출된다
-    fn is_valid_hand(&mut self, players: &Vec<Box<dyn Job>>, idx: usize) -> bool;
+    fn is_valid_hand(&self, job: &Box<dyn Job + Send>, status: &Status, idx: usize) -> bool;
 
     // 고정 손 직업일 경우 플레이어 지목 직후에, 그렇지 않을 경우 낮이 될 때 호출된다.
     fn hand(&self, players: &Vec<Box<dyn Job>>, idx: usize) -> Vec<Event>;

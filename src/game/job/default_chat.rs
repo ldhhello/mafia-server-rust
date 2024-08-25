@@ -23,7 +23,11 @@ pub fn chat_default(time: Time, my_status: &Status) -> Option<ChatFn> {
             ChatType::Normal
         }))
     }
-    // todo: 최후의 반론
+    else if time == Time::FinalObjection && my_status.lynched {
+        Some(Box::new(|_, _| {
+            ChatType::Normal
+        }))
+    }
     else {
         None
     }

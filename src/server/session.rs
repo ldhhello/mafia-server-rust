@@ -27,7 +27,7 @@ impl Session {
         let (read, write) = tokio::io::split(socket);
 
         return Self {
-            read: Mutex::new(read), 
+            read: Mutex::new(read),
             write: Mutex::new(write),
             nickname: "".into(),
             room: Mutex::new(None),
@@ -48,7 +48,7 @@ impl Session {
                 self.write_packet(Packet::from_data(method::PONG, vec![])).await?;
                 continue;
             }
-    
+
             break Ok(packet);
         };
     }
@@ -96,7 +96,7 @@ impl Session {
     }
     pub async fn leave_room(self: &Arc<Self>) -> Result<(), Box<dyn Error>> {
         let mut room = self.room.lock().await;
-        
+
         if let Some(room) = room.as_ref() {
             room.leave(self.clone()).await?;
             room.broadcast_player_list().await;
@@ -212,7 +212,13 @@ impl Session {
                     if let Some(room) = self.room.lock().await.clone() {
                         room.send(Event::DecreaseTime(*self.index.lock().await)).await.unwrap_or(());
                     }
-                }
+                },
+                method::HAND => {
+                    let target = packet.get(0).to_i32();
+                    if let Some(room) = self.room.lock().await.clone() {
+                        room.send(Event::Hand(*self.index.lock().await, target as usize)).await.unwrap_or(());
+                    }
+                },
                 _ => ()
             }
         }
