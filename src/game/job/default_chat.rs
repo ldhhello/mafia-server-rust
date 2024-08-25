@@ -18,7 +18,7 @@ pub fn chat_default(time: Time, my_status: &Status) -> Option<ChatFn> {
             ChatType::Null
         }))
     }
-    else if time == Time::Day {
+    else if time == Time::Day || time == Time::Vote || time == Time::YesnoVote {
         Some(Box::new(|_, _| {
             ChatType::Normal
         }))
