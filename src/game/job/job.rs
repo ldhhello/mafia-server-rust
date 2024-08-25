@@ -1,3 +1,5 @@
+use crate::room::room::ChatType;
+
 use super::option::{JobOption, JobStatus};
 use super::super::event::Event;
 
@@ -28,5 +30,5 @@ pub trait Job {
     // 채팅을 하면 호출된다.
     // 반환값은 함수인데, 채팅을 받을 사람을 지정하는 함수를 호출한다.
     // 반환값 함수가 true를 리턴하는 사람들에게만 채팅이 전달된다.
-    fn chat(&self, message: String) -> (dyn Fn(&Box<dyn Job>) -> bool);
+    fn chat(&self, message: String) -> Box<dyn Fn(&Box<dyn Job>) -> ChatType>;
 }

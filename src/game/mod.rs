@@ -1,29 +1,33 @@
 mod classic_game;
-mod event;
+mod classic_game_status;
+mod error;
+pub mod event;
 mod job;
 mod time;
 
-use std::{error::Error, sync::Arc};
+use crate::{room::room::Room, server::session::Session};
 use async_trait::async_trait;
+use event::Event;
+use std::{error::Error, sync::Arc};
 use tokio::sync::Mutex;
-use crate::server::session::Session;
 
 use classic_game::ClassicGame;
 
 #[derive(Clone, Copy)]
 pub enum GameType {
-    ClassicGame
+    ClassicGame,
 }
 
 #[async_trait]
 pub trait Game {
     async fn run(&self) -> Result<(), Box<dyn Error>>;
+    async fn send(&self, event: Event) -> Result<(), Box<dyn Error>>;
 }
 
 impl GameType {
-    pub fn new(self, players: Arc<Mutex<Vec<Option<Arc<Session>>>>>) -> Box<dyn Game + Send> {
+    pub fn new(self, room: Arc<Room>) -> Box<dyn Game + Send + Sync> {
         match self {
-            Self::ClassicGame => Box::new(ClassicGame::new(players))
+            Self::ClassicGame => Box::new(ClassicGame::new(room)),
         }
     }
 }

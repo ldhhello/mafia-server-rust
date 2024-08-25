@@ -1,9 +1,10 @@
-use std::sync::Arc;
+use std::sync::{atomic::{AtomicI32, AtomicUsize, Ordering}, Arc};
 use tokio::sync::Mutex;
-use crate::{game::{Game, GameType}, method, packet::{binarydata::BinaryData, Packet}, server::session::Session};
+use crate::{game::{event::Event, Game, GameType}, method, packet::{binarydata::BinaryData, Packet}, server::session::Session};
 use std::error::Error;
 use super::{error, manager::RoomManager};
 use crate::filter::FILTER;
+use super::player::Players;
 
 pub struct RoomOption {
     pub name: String,
@@ -41,11 +42,12 @@ pub enum ChatType {
 pub struct Room {
     id: i32,
     option: RoomOption,
-    players: Arc<Mutex<Vec<Option<Arc<Session>>>>>,
+    pub players: Arc<Mutex<Vec<Option<Arc<Session>>>>>,
     moderator: Mutex<usize>,
     manager: Arc<RoomManager>,
-    game: Mutex<Option<Box<dyn Game + Send>>>,
+    pub game: Mutex<Option<Box<dyn Game + Send + Sync>>>,
     is_gaming: Mutex<bool>,
+    now_people: AtomicUsize,
 }
 
 impl Room {
@@ -60,12 +62,14 @@ impl Room {
             manager,
             game: Mutex::new(None),
             is_gaming: Mutex::new(false),
+            now_people: 0.into(),
         }
     }
-    async fn now_people(&self) -> usize {
-        return self.players.lock().await.iter()
-            .filter(|player| player.is_some())
-            .count();
+    pub fn now_people(&self) -> usize {
+        // return self.players.lock().await.iter()
+        //     .filter(|player| player.is_some())
+        //     .count();
+        return self.now_people.load(Ordering::Relaxed);
     }
     pub async fn info(&self) -> RoomInfo {
         RoomInfo {
@@ -73,48 +77,11 @@ impl Room {
             name: self.option.name.clone(),
             max_people: self.option.max_people,
             is_password: self.option.password.is_some(),
-            now_people: self.now_people().await,
+            now_people: self.now_people(),
             is_gaming: *self.is_gaming.lock().await,
         }
     }
 
-    // broadcast 시에 발생하는 모든 I/O 오류는 무시한다.
-    // 그러지 않으면 세션 하나 터진 것 때문에 전체 방에 broadcast가 제대로 안 되는 문제가 발생할 수 있음
-    // 어차피 터진 세션은 Session::destruct() 에 의해 없어지기 때문에 여기서 따로 처리할 필요 없다.
-    //
-    // 또한 이 함수는 write 연산을 트리거하고 바로 반환된다.
-    // 소켓 하나가 느린 것 때문에 전체 게임이 지연되면 문제가 생기기 때문
-    //
-    async fn broadcast(players: &Vec<Option<Arc<Session>>>, packet: Packet) {
-        players.iter().for_each(|session| {
-            if let Some(session) = session {
-                let packet = packet.clone();
-                let session = session.clone();
-                tokio::spawn(async move {
-                    if let Err(e) = session.write_packet(packet).await {
-                        eprintln!("Error while broadcasting: {}", e);
-                    }
-                });
-            }
-        });
-    }
-    async fn broadcast_if(players: &Vec<Option<Arc<Session>>>, packet: Packet, condition: &(dyn Fn(usize, &Arc<Session>) -> bool)) {
-        players.iter().enumerate().for_each(|(idx, session)| {
-            if let Some(session) = session {
-                if !condition(idx, session) {
-                    return;
-                }
-
-                let packet = packet.clone();
-                let session = session.clone();
-                tokio::spawn(async move {
-                    if let Err(e) = session.write_packet(packet).await {
-                        eprintln!("Error while broadcasting: {}", e);
-                    }
-                });
-            }
-        });
-    }
     pub async fn broadcast_player_list(&self) {
         let players = self.players.lock().await;
 
@@ -137,7 +104,7 @@ impl Room {
             })
             .collect();
 
-        Self::broadcast(&players, Packet::from_data(method::PLAYER_LIST, vec)).await;
+        players.broadcast(Packet::from_data(method::PLAYER_LIST, vec)).await;
     }
 
     pub async fn join(&self, session: Arc<Session>) -> Result<(), error::Error> {
@@ -146,17 +113,19 @@ impl Room {
 
         if let Some(player) = player {
             *player = Some(session.clone());
+            self.now_people.fetch_add(1, Ordering::Relaxed);
 
-            Self::broadcast(&players, Packet::from_data(method::PLAYER_JOINED, vec![
+            players.broadcast(Packet::from_data(method::PLAYER_JOINED, vec![
                 BinaryData::from_string(session.nickname.clone())
             ])).await;
+
             return Ok(());
         }
         else {
             return Err(error::Error::RoomIsFull);
         }
     }
-    pub async fn leave(self: &Arc<Room>, session: Arc<Session>) -> Result<(), error::Error> {
+    pub async fn leave(self: &Arc<Self>, session: Arc<Session>) -> Result<(), error::Error> {
         let mut players = self.players.lock().await;
         let player = players.iter_mut().enumerate().find(|(_, player)| {
             if let Some(player) = player {
@@ -169,7 +138,8 @@ impl Room {
 
         if let Some((idx, player)) = player {
             *player = None;
-            
+            self.now_people.fetch_sub(1, Ordering::Release);
+
             let mut moderator = self.moderator.lock().await;
             if idx == *moderator {
                 if let Some((idx, _)) = players.iter().enumerate()
@@ -181,18 +151,18 @@ impl Room {
                     Some(p) => p.nickname.clone(),
                     None => "".into()
                 };
-                Self::broadcast(&players, Packet::from_data(method::MODERATOR_CHANGED, vec![
+                players.broadcast(Packet::from_data(method::MODERATOR_CHANGED, vec![
                     BinaryData::from_string(nickname)
                 ])).await;
             }
 
-            Self::broadcast(&players, Packet::from_data(method::PLAYER_LEFT, vec![
+            players.broadcast(Packet::from_data(method::PLAYER_LEFT, vec![
                 BinaryData::from_string(session.nickname.clone())
             ])).await;
 
             let this = self.clone();
             tokio::spawn(async move {
-                if this.now_people().await == 0 {
+                if this.now_people() == 0 {
                     this.manager.delete(this.id).await;
                 }
             });
@@ -206,9 +176,15 @@ impl Room {
     pub async fn chat(&self, session: Arc<Session>, message: String) -> Result<(), error::Error> {
         let message = FILTER.filter(message);
 
+        if let Some(game) = self.game.lock().await.as_ref() {
+            let idx = self.index(session).await.expect("Session index does not exist");
+            Self::send_game(game, Event::Chat(idx, message)).await?;
+            return Ok(());
+        }
+
         let players = self.players.lock().await;
 
-        Self::broadcast(&players, Packet::from_data(method::CHAT, vec![
+        players.broadcast(Packet::from_data(method::CHAT, vec![
             BinaryData::from_i32(ChatType::Normal as i32),
             BinaryData::from_string(session.nickname.clone()),
             BinaryData::from_string(message)
@@ -241,8 +217,8 @@ impl Room {
             panic!("Moderator index does not exist");
         }
     }
-    pub async fn start_game(&self) -> Result<(), error::Error> {
-        if self.now_people().await < 4 {
+    pub async fn start_game(self: Arc<Self>) -> Result<(), error::Error> {
+        if self.now_people() < 4 {
             return Err(error::Error::PlayerNotEnough);
         }
 
@@ -255,7 +231,7 @@ impl Room {
             return Err(error::Error::AlreadyStarted);
         }
 
-        let game_ = self.option.game_type.new(self.players.clone());
+        let game_ = self.option.game_type.new(self.clone());
 
         if let Err(_) = game_.run().await {
             return Err(error::Error::CommunicationError);
@@ -263,5 +239,20 @@ impl Room {
 
         *game = Some(game_);
         Ok(())
+    }
+    pub async fn send_game(game: &Box<dyn Game + Send + Sync>, event: Event) -> Result<(), error::Error> {
+        if let Err(_) = game.send(event).await {
+            return Err(error::Error::CommunicationError);
+        }
+        Ok(())
+    }
+    pub async fn send(&self, event: Event) -> Result<(), error::Error> {
+        if let Some(game) = self.game.lock().await.as_ref() {
+            Self::send_game(game, event).await?;
+            Ok(())
+        }
+        else {
+            Err(error::Error::GameIsNotStarted)
+        }
     }
 }

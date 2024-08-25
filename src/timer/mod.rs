@@ -23,7 +23,9 @@ impl Timer {
     pub async fn decrease(&self, seconds: i32) {
         *self.seconds.lock().await -= seconds;
     }
-    pub async fn run(&self) {
+    pub async fn run(&self, seconds: i32) {
+        self.set(seconds).await;
+        
         while *self.seconds.lock().await > 0 {
             *self.seconds.lock().await -= 1;
 
@@ -35,12 +37,10 @@ impl Timer {
 #[tokio::test]
 async fn test() {
     let timer = Arc::new(Timer::new());
-
-    timer.set(10).await;
     
     let timer_ = timer.clone();
     let handle = tokio::spawn(async move {
-        timer_.run().await;
+        timer_.run(10).await;
         println!("Timer finished!");
     });
 

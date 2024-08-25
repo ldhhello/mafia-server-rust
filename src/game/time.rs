@@ -1,5 +1,6 @@
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Time {
+    Null,
     Night,
     Day,
     Vote,
@@ -7,3 +8,13 @@ pub enum Time {
     YesnoVote,
     End
 }
+
+pub const TIME_LENGTH: [i32; 7] = [
+    0,
+    25,
+    60 /* todo */,
+    15,
+    15,
+    10,
+    -1
+];

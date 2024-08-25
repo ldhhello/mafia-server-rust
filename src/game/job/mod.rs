@@ -1,9 +1,14 @@
 use std::fmt::{Display, Formatter};
 
+use job::Job;
+use mafia::mafia::Mafia;
+
 pub mod job;
 pub mod option;
 
-#[derive(Clone, Copy, Debug)]
+pub mod mafia;
+
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum JobList {
     None,
     Mafia, Police, Doctor, Special, Assist, Cult,
@@ -24,6 +29,15 @@ pub enum JobList {
     Administrator /* 공무원 */, Cabal /* 비밀결사 */,
     Paparazzi /* 파파라치 */,
     Fanatic /* 광신도 */
+}
+
+impl JobList {
+    pub fn create_job(self) -> Box<dyn Job + Send> {
+        match self {
+            Self::Mafia => Box::new(Mafia::new()),
+            _ => Box::new(Mafia::new())
+        }
+    }
 }
 
 impl Default for JobList {

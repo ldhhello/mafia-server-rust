@@ -2,6 +2,7 @@ use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt, ReadHalf, WriteHalf};
 use tokio::sync::Mutex;
 use std::error::Error;
+use crate::game::event::Event;
 use crate::game::GameType;
 use crate::packet::binarydata::BinaryData;
 use crate::packet::Packet;
@@ -18,6 +19,7 @@ pub struct Session {
     pub nickname: String,
     room: Mutex<Option<Arc<Room>>>,
     room_manager: Arc<RoomManager>,
+    index: Mutex<usize>
 }
 
 impl Session {
@@ -30,6 +32,7 @@ impl Session {
             nickname: "".into(),
             room: Mutex::new(None),
             room_manager,
+            index: Mutex::new(0),
         }
     }
     pub async fn write_packet(&self, packet: Packet) -> Result<(), Box<dyn Error>> {
@@ -67,7 +70,9 @@ impl Session {
     }
     pub async fn join_room(self: &Arc<Self>, room: Arc<Room>) -> Result<(), Box<dyn Error>> {
         match room.join(self.clone()).await {
-            Ok(()) => (),
+            Ok(()) => {
+                *self.index.lock().await = room.index(self.clone()).await.expect("Session index must exist");
+            },
             Err(room::Error::RoomIsFull) => {
                 self.write_packet(Packet::from_data(method::ERROR, vec![
                     BinaryData::from_i32(string::ROOM_IS_FULL)
@@ -198,6 +203,16 @@ impl Session {
                         }
                     }
                 },
+                method::INCREASE_TIME => {
+                    if let Some(room) = self.room.lock().await.clone() {
+                        room.send(Event::IncreaseTime(*self.index.lock().await)).await.unwrap_or(());
+                    }
+                },
+                method::DECREASE_TIME => {
+                    if let Some(room) = self.room.lock().await.clone() {
+                        room.send(Event::DecreaseTime(*self.index.lock().await)).await.unwrap_or(());
+                    }
+                }
                 _ => ()
             }
         }

@@ -6,7 +6,8 @@ pub enum Error {
     AlreadyLeft,
     PlayerNotEnough,
     AlreadyStarted,
-    CommunicationError
+    CommunicationError,
+    GameIsNotStarted,
 }
 
 impl Display for Error {
@@ -17,6 +18,7 @@ impl Display for Error {
             Self::PlayerNotEnough => write!(f, "Player not enough"),
             Self::AlreadyStarted => write!(f, "Game have already been started"),
             Self::CommunicationError => write!(f, "Internal Communication Error"),
+            Self::GameIsNotStarted => write!(f, "Game is not started"),
         }
     }
 }
