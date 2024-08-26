@@ -29,7 +29,7 @@ impl Job for Mafia {
     }
 
     // 마피아의 능력은 특별히 여기서 처리하지 않고 classic_game.rs에서 처리한다.
-    fn hand(&self, players: &Vec<Box<dyn Job>>, idx: usize) -> Vec<game::event::Event> {
+    fn hand(&self, time: Time, job: &Box<dyn Job + Send>, status: &Status, idx: usize) -> Vec<game::event::Event> {
         vec![]
     }
 

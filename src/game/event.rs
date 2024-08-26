@@ -7,4 +7,5 @@ pub enum Event {
     DecreaseTime(usize),
     Chat(usize, String),
     Hand(usize, usize),
+    Skill(i32, Vec<String>, usize)
 }

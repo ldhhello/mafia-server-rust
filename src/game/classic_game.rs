@@ -244,7 +244,13 @@ impl ClassicGame {
                         match my_job.option().hand_type {
                             HandType::NoHand => (),
                             HandType::FixedHand => {
-
+                                let vec = my_job.hand(current_time, target_job, &status[target_idx], target_idx);
+                                let tx = tx.clone();
+                                tokio::spawn(async move {
+                                    for e in vec {
+                                        tx.send(e).await.unwrap_or(());
+                                    }
+                                });
                             },
                             HandType::MovingHand => {
                                 if my_job.is_valid_hand(current_time, target_job, &status[target_idx], target_idx) {
@@ -256,6 +262,20 @@ impl ClassicGame {
                                     });
                                 }
                             }
+                        }
+                    },
+                    Event::Skill(skill_id, vec, receiver) => {
+                        let players = players.lock().await;
+                        if let Some(player) = players[receiver].clone() {
+                            tokio::spawn(async move {
+                                player.write_packet(Packet::from_data(method::SKILL,
+                                    std::iter::once(BinaryData::from_i32(skill_id))
+                                    .chain(vec.into_iter()
+                                        .map(|s| BinaryData::from_string(s))
+                                    )
+                                    .collect()
+                                )).await.unwrap_or(());
+                            });
                         }
                     }
                 }

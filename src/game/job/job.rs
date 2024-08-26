@@ -22,7 +22,7 @@ pub trait Job {
     fn is_valid_hand(&self, time: Time, job: &Box<dyn Job + Send>, status: &Status, idx: usize) -> bool;
 
     // 고정 손 직업일 경우 플레이어 지목 직후에, 그렇지 않을 경우 낮이 될 때 호출된다.
-    fn hand(&self, players: &Vec<Box<dyn Job>>, idx: usize) -> Vec<Event>;
+    fn hand(&self, time: Time, job: &Box<dyn Job + Send>, status: &Status, idx: usize) -> Vec<Event>;
 
     // 마피아에게 지목당했을 때 호출된다.
     // 여기서 의사의 치료처리, 군인의 방탄처리 등등을 한다.
