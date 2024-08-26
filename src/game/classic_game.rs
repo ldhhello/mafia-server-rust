@@ -247,7 +247,7 @@ impl ClassicGame {
 
                             },
                             HandType::MovingHand => {
-                                if my_job.is_valid_hand(target_job, &status[target_idx], target_idx) {
+                                if my_job.is_valid_hand(current_time, target_job, &status[target_idx], target_idx) {
                                     status[my_idx].hand = target_idx;
 
                                     let session = players.lock().await[my_idx].clone().expect("Session does not exist");

@@ -11,9 +11,9 @@ pub struct JobOption {
     pub team: Team,
     pub hand_type: HandType,
     pub vote_right: i32,
-    
+    pub shared_hand: bool
 }
 
 pub struct JobStatus {
-    
+
 }

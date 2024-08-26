@@ -17,10 +17,11 @@ impl Job for Citizen {
             team: Team::CitizenTeam,
             hand_type: HandType::NoHand,
             vote_right: 1,
+            shared_hand: false,
         }
     }
 
-    fn is_valid_hand(&self, job: &Box<dyn Job + Send>, status: &Status, idx: usize) -> bool {
+    fn is_valid_hand(&self, time: Time, job: &Box<dyn Job + Send>, status: &Status, idx: usize) -> bool {
         return false;
     }
 

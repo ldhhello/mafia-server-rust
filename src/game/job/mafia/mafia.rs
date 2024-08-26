@@ -17,10 +17,14 @@ impl Job for Mafia {
             team: Team::MafiaTeam,
             hand_type: HandType::MovingHand,
             vote_right: 1,
+            shared_hand: true,
         }
     }
 
-    fn is_valid_hand(&self, job: &Box<dyn Job + Send>, status: &Status, idx: usize) -> bool {
+    fn is_valid_hand(&self, time: Time, job: &Box<dyn Job + Send>, status: &Status, idx: usize) -> bool {
+        if time != Time::Night {
+            return false;
+        }
         return status.life_status == LifeStatus::Alive;
     }
 
