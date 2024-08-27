@@ -164,6 +164,7 @@ impl Room {
             let this = self.clone();
             tokio::spawn(async move {
                 if this.now_people() == 0 {
+                    this.send(Event::Close).await.unwrap_or(());
                     this.manager.delete(this.id).await;
                 }
             });

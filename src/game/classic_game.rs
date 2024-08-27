@@ -295,6 +295,10 @@ impl ClassicGame {
                             });
                         }
                     },
+                    Event::Close => {
+                        println!("Event::Close triggered, game finished");
+                        return Ok(());
+                    },
                 }
             }
             else {
