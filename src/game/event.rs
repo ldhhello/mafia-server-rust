@@ -1,4 +1,5 @@
 use super::time::Time;
+use super::GameString;
 
 pub enum Event {
     Start,
@@ -7,5 +8,6 @@ pub enum Event {
     DecreaseTime(usize),
     Chat(usize, String),
     Hand(usize, usize),
-    Skill(i32, Vec<String>, usize)
+    Skill(i32, Vec<GameString>, usize),
+    Memo(usize, usize),
 }

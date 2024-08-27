@@ -1,4 +1,4 @@
-use crate::{game::{self, classic_game_status::Status, job::{default_chat::chat_default, job::ChatFn}}, room::room::ChatType};
+use crate::{game::{self, classic_game_status::{LifeStatus, Status}, job::{default_chat::chat_default, job::ChatFn}, GameString}, room::room::ChatType};
 
 use crate::game::{time::Time, event::Event};
 
@@ -24,19 +24,34 @@ impl Job for Police {
     }
 
     fn is_valid_hand(&self, time: Time, job: &Box<dyn Job + Send>, status: &Status, idx: usize) -> bool {
-        return false;
+        if time != Time::Night {
+            return false;
+        }
+
+        if status.life_status != LifeStatus::Alive {
+            return false;
+        }
+        else {
+            return true;
+        }
     }
 
-    fn hand(&self, time: Time, job: &Box<dyn Job + Send>, status: &Status, idx: usize) -> Vec<Event> {
+    fn hand(&self, time: Time, job: &Box<dyn Job + Send>, status: &Status, my_idx: usize, target_idx: usize) -> Vec<Event> {
         if time != Time::Night {
             return vec![];
         }
 
         if job.option().job_id == JobList::Mafia {
-            return vec![Event::Skill(skill::CAUGHT_MAFIA, vec!["김승억".into()], idx /* 여기 내 idx 들어가야ㄷ 되는데? */)];
+            return vec![
+                Event::Skill(skill::CAUGHT_MAFIA, vec![GameString::Nickname(target_idx)], my_idx),
+                Event::Memo(my_idx, target_idx),
+            ];
         }
-        return vec![]; /* todo */
-        //todo!()
+        else {
+            return vec![
+                Event::Skill(skill::NO_MAFIA, vec![GameString::Nickname(target_idx)], my_idx)
+            ];
+        }
     }
 
     fn on_got_murderred(&self, players: &Vec<Box<dyn Job>>, idx: usize) -> Vec<Event> {

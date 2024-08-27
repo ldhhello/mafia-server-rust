@@ -8,6 +8,7 @@ mod time;
 use crate::{room::room::Room, server::session::Session};
 use async_trait::async_trait;
 use event::Event;
+use job::JobList;
 use std::{error::Error, sync::Arc};
 use tokio::sync::Mutex;
 
@@ -30,4 +31,10 @@ impl GameType {
             Self::ClassicGame => Box::new(ClassicGame::new(room)),
         }
     }
+}
+
+
+pub enum GameString {
+    Nickname(usize), /* Nickname(idx): idx번 픽의 닉네임 */
+    Jobname(JobList), /* Jobname(job): job의 이름 */
 }

@@ -50,9 +50,9 @@ impl Default for JobList {
     fn default() -> Self { JobList::None }
 }
 
-impl Display for JobList {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
-        write!(f, "{}", match *self {
+impl Into<String> for JobList {
+    fn into(self) -> String {
+        match self {
             JobList::None => "무직",
             JobList::Mafia => "마피아",
             JobList::Police => "경찰",
@@ -93,7 +93,14 @@ impl Display for JobList {
             JobList::Cabal => "비밀결사",
             JobList::Paparazzi => "파파라치",
             JobList::Fanatic => "광신도",
-        })?;
+        }.into()
+    }
+}
+
+impl Display for JobList {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
+        let str: String = self.clone().into();
+        write!(f, "{}", str)?;
         Ok(())
     }
 }

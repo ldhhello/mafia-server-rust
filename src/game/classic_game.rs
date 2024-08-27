@@ -22,7 +22,7 @@ use crate::room::player::Players;
 use super::classic_game_status::Status;
 use crate::room::room::ChatType;
 
-use super::Game;
+use super::{Game, GameString};
 
 const JOB_ARR: [JobList; 12] = [JobList::Mafia, JobList::Police, JobList::Doctor, JobList::Special, // 4인
     JobList::Special, // 5인
@@ -83,12 +83,12 @@ impl ClassicGame {
         let mut job = Vec::new();
         let mut status = vec![Status::default(); players.lock().await.len()];
 
-        let nicknames: Vec<String> = players.lock().await.iter().enumerate().map(|(idx, p)| {
+        let nicknames: Arc<Vec<String>> = Arc::new(players.lock().await.iter().enumerate().map(|(idx, p)| {
             match p {
                 Some(session) => session.nickname.clone(),
                 None => format!("플레이어 {}", idx+1)
             }
-        }).collect();
+        }).collect());
 
         let mut current_time = Time::Null;
         let timer = Arc::new(Timer::new());
@@ -244,7 +244,7 @@ impl ClassicGame {
                         match my_job.option().hand_type {
                             HandType::NoHand => (),
                             HandType::FixedHand => {
-                                let vec = my_job.hand(current_time, target_job, &status[target_idx], target_idx);
+                                let vec = my_job.hand(current_time, target_job, &status[target_idx], my_idx, target_idx);
                                 let tx = tx.clone();
                                 tokio::spawn(async move {
                                     for e in vec {
@@ -267,17 +267,34 @@ impl ClassicGame {
                     Event::Skill(skill_id, vec, receiver) => {
                         let players = players.lock().await;
                         if let Some(player) = players[receiver].clone() {
+                            let nicknames = nicknames.clone();
                             tokio::spawn(async move {
                                 player.write_packet(Packet::from_data(method::SKILL,
                                     std::iter::once(BinaryData::from_i32(skill_id))
                                     .chain(vec.into_iter()
+                                        .map(|s| match s {
+                                            GameString::Nickname(idx) => nicknames[idx].clone(),
+                                            GameString::Jobname(job) => job.into()
+                                        })
                                         .map(|s| BinaryData::from_string(s))
                                     )
                                     .collect()
                                 )).await.unwrap_or(());
                             });
                         }
-                    }
+                    },
+                    Event::Memo(my_idx, target_idx) => {
+                        let players = players.lock().await;
+                        if let Some(player) = players[my_idx].clone() {
+                            let job_id = job[target_idx].as_ref().expect("Target should be exist").option().job_id;
+                            tokio::spawn(async move {
+                                player.write_packet(Packet::from_data(method::MEMO, vec![
+                                    BinaryData::from_i32(target_idx as i32),
+                                    BinaryData::from_i32(job_id as i32)
+                                ])).await.unwrap_or(());
+                            });
+                        }
+                    },
                 }
             }
             else {
@@ -300,8 +317,7 @@ impl ClassicGame {
 
         // 4인방에서 연인이 배정되지 않게 하는 코드
         if special_cnt == 1 {
-            // special_arr는 항상 길이가 1 이상이기 때문에 expect()에서 절대로 실패하지 않는다
-            special_arr[0] = *special_arr.last().expect("special_arr is empty!!");
+            special_arr[0] = *special_arr.last().expect("special_arr should not be empty");
             special_arr.pop();
         }
 

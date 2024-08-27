@@ -27,7 +27,7 @@ impl Job for Citizen {
         return false;
     }
 
-    fn hand(&self, time: Time, job: &Box<dyn Job + Send>, status: &Status, idx: usize) -> Vec<Event> {
+    fn hand(&self, time: Time, job: &Box<dyn Job + Send>, status: &Status, my_idx: usize, target_idx: usize) -> Vec<Event> {
         vec![]
     }
 
