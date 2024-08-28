@@ -10,5 +10,6 @@ pub enum Event {
     Hand(usize, usize),
     Skill(i32, Vec<GameString>, usize),
     Memo(usize, usize),
+    MafiaKill,
     Close,
 }

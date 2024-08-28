@@ -89,6 +89,7 @@ impl ClassicGame {
             }
         });
     }
+    // 전체 게임 로직을 기술하는 함수이다.
     async fn event_loop(room: Arc<Room>, tx: Arc<mpsc::Sender<Event>>, mut rx: mpsc::Receiver<Event>) -> Result<(), Box<dyn error::Error>> {
         let players = room.players.clone();
         let mut job_list = Vec::new();
@@ -106,229 +107,236 @@ impl ClassicGame {
         let timer = Arc::new(Timer::new());
 
         loop {
-            if let Some(event) = rx.recv().await {
-                match event {
-                    Event::Start => {
-                        let players = players.lock().await;
+            match rx.recv().await {
+                Some(Event::Start) => {
+                    let players = players.lock().await;
 
-                        players.broadcast(Packet::from_data(method::START_GAME, vec![])).await;
+                    players.broadcast(Packet::from_data(method::START_GAME, vec![])).await;
 
-                        let now_people = room.now_people();
-                        if now_people < 4 || now_people > 12 {
-                            return Err(Error::IncorrectPeopleCount.into());
-                        }
-                        println!("Game has been started!");
-                        job_list = {
-                            let job = Self::initialize_job(room.now_people()).await?;
-                            let mut job_it = job.iter();
+                    let now_people = room.now_people();
+                    if now_people < 4 || now_people > 12 {
+                        return Err(Error::IncorrectPeopleCount.into());
+                    }
+                    println!("Game has been started!");
+                    job_list = {
+                        let job = Self::initialize_job(room.now_people()).await?;
+                        let mut job_it = job.iter();
 
-                            players.iter().map(|player| {
-                                if let Some(_) = player {
-                                    return Some(job_it.next().copied().unwrap_or(JobList::Citizen).clone());
-                                }
-                                else {
-                                    return None;
-                                }
-                            })
-                            .collect()
-                        };
-                        job = job_list.iter().map(|job| {
-                            if let Some(job) = job {
-                                Some(job.create_job())
+                        players.iter().map(|player| {
+                            if let Some(_) = player {
+                                return Some(job_it.next().copied().unwrap_or(JobList::Citizen).clone());
                             }
                             else {
-                                None
+                                return None;
                             }
-                        }).collect();
-
-                        for (player, job) in players.iter().zip(job_list.iter()) {
-                            if let (Some(player), Some(job)) = (player, job) {
-                                let player = player.clone();
-                                let job = job.clone();
-
-                                tokio::spawn(async move {
-                                    if let Err(e) = player.write_packet(Packet::from_data(method::JOB, vec![
-                                        BinaryData::from_i32(job as i32)
-                                    ])).await {
-                                        eprintln!("Error while broadcasting job: {}", e);
-                                    };
-                                });
-                            }
+                        })
+                        .collect()
+                    };
+                    job = job_list.iter().map(|job| {
+                        if let Some(job) = job {
+                            Some(job.create_job())
                         }
-
-                        Self::send_spawn(&tx, Event::TimeChanged(Time::Night));
-                    },
-                    Event::TimeChanged(time) => {
-                        println!("Time changed to {:?}!!", time);
-                        current_time = time;
-
-                        status.iter_mut().for_each(|s| s.reset(time));
-
-                        let players = players.lock().await;
-                        players.broadcast(Packet::from_data(
-                            method::TIME_CHANGED,
-                            vec![
-                                BinaryData::from_i32(time as i32),
-                                BinaryData::from_i32(TIME_LENGTH[time as usize]),
-                            ]
-                        )).await;
-
-                        let next_time = match time {
-                            Time::Night => Time::Day,
-                            Time::Day => Time::Vote,
-                            Time::Vote => Time::FinalObjection /* todo */,
-                            Time::FinalObjection => Time::YesnoVote,
-                            Time::YesnoVote => Time::Night,
-                            _ => Time::Null
-                        };
-
-                        let timer = timer.clone();
-                        let tx = tx.clone();
-                        tokio::spawn(async move {
-                            timer.run(TIME_LENGTH[time as usize]).await;
-                            tx.send(Event::TimeChanged(next_time)).await.unwrap_or(());
-                        });
-                    },
-                    Event::IncreaseTime(idx) => 'increase_time: {
-                        if current_time != Time::Day {
-                            break 'increase_time;
+                        else {
+                            None
                         }
-                        if status[idx].modified_time {
-                            break 'increase_time;
-                        }
+                    }).collect();
 
-                        status[idx].modified_time = true;
-                        timer.increase(15).await;
+                    for (player, job) in players.iter().zip(job_list.iter()) {
+                        if let (Some(player), Some(job)) = (player, job) {
+                            let player = player.clone();
+                            let job = job.clone();
 
-                        let players = players.lock().await;
-                        players.broadcast(Packet::from_data(method::INCREASE_TIME, vec![
-                            BinaryData::from_string(nicknames[idx].clone())
-                        ])).await;
-                    },
-                    Event::DecreaseTime(idx) => 'decrease_time: {
-                        if current_time != Time::Day {
-                            break 'decrease_time;
-                        }
-                        if status[idx].modified_time {
-                            break 'decrease_time;
-                        }
-
-                        status[idx].modified_time = true;
-                        timer.decrease(15).await;
-
-                        let players = players.lock().await;
-                        players.broadcast(Packet::from_data(method::DECREASE_TIME, vec![
-                            BinaryData::from_string(nicknames[idx].clone())
-                        ])).await;
-                    },
-                    Event::Chat(idx, msg) => {
-                        let my_job = job[idx].as_ref().expect("Sender does not exist");
-                        let chat_fn = my_job.chat(current_time, &status[idx]);
-
-                        let players = players.lock().await;
-                        let sender = &players[idx].as_ref().expect("Sender does not exist").nickname;
-                        players.iter().zip(job.iter()).zip(status.iter()).for_each(|((p, j), s)| {
-                            if let (Some(p), Some(j)) = (p, j) {
-                                let chat_type = chat_fn(j, s);
-                                if chat_type != ChatType::Null {
-                                    let p = p.clone();
-                                    let msg = msg.clone();
-                                    let sender = sender.clone();
-
-                                    tokio::spawn(async move {
-                                        p.write_packet(Packet::from_data(method::CHAT, vec![
-                                            BinaryData::from_i32(chat_type as i32),
-                                            BinaryData::from_string(sender),
-                                            BinaryData::from_string(msg)
-                                        ])).await.unwrap_or(());
-                                    });
-                                }
-                            }
-                        });
-                    },
-                    Event::Hand(my_idx, target_idx) => {
-                        if job[target_idx].is_none() {
-                            continue;
-                        }
-
-                        let my_job = job[my_idx].as_ref().expect("Sender does not exist");
-                        let target_job = job[target_idx].as_ref().expect("Target does not exist");
-                        match my_job.option().hand_type {
-                            HandType::NoHand => (),
-                            HandType::FixedHand => {
-                                if status[my_idx].hand < usize::max_value() {
-                                    continue;
-                                }
-                                if !my_job.is_valid_hand(current_time, target_job, &status[target_idx], target_idx) {
-                                    continue;
-                                }
-
-                                status[my_idx].hand = target_idx;
-
-                                let vec = my_job.hand(current_time, target_job, &status[target_idx], my_idx, target_idx);
-                                let tx = tx.clone();
-
-                                let session = players.lock().await[my_idx].clone().expect("Session does not exist");
-                                tokio::spawn(async move {
-                                    session.write_packet(Packet::from_data(method::HAND, vec![])).await.unwrap_or(())
-                                });
-
-                                tokio::spawn(async move {
-                                    tx.send_all(vec).await.unwrap_or(());
-                                });
-                            },
-                            HandType::MovingHand => {
-                                if my_job.is_valid_hand(current_time, target_job, &status[target_idx], target_idx) {
-                                    status[my_idx].hand = target_idx;
-
-                                    let session = players.lock().await[my_idx].clone().expect("Session does not exist");
-                                    tokio::spawn(async move {
-                                        session.write_packet(Packet::from_data(method::HAND, vec![])).await.unwrap_or(())
-                                    });
-                                }
-                            }
-                        }
-                    },
-                    Event::Skill(skill_id, vec, receiver) => {
-                        let players = players.lock().await;
-                        if let Some(player) = players[receiver].clone() {
-                            let nicknames = nicknames.clone();
                             tokio::spawn(async move {
-                                player.write_packet(Packet::from_data(method::SKILL,
-                                    std::iter::once(BinaryData::from_i32(skill_id))
-                                    .chain(vec.into_iter()
-                                        .map(|s| match s {
-                                            GameString::Nickname(idx) => nicknames[idx].clone(),
-                                            GameString::Jobname(job) => job.into()
-                                        })
-                                        .map(|s| BinaryData::from_string(s))
-                                    )
-                                    .collect()
-                                )).await.unwrap_or(());
+                                if let Err(e) = player.write_packet(Packet::from_data(method::JOB, vec![
+                                    BinaryData::from_i32(job as i32)
+                                ])).await {
+                                    eprintln!("Error while broadcasting job: {}", e);
+                                };
                             });
                         }
-                    },
-                    Event::Memo(my_idx, target_idx) => {
-                        let players = players.lock().await;
-                        if let Some(player) = players[my_idx].clone() {
-                            let job_id = job[target_idx].as_ref().expect("Target should be exist").option().job_id;
+                    }
+
+                    Self::send_spawn(&tx, Event::TimeChanged(Time::Night));
+                },
+                Some(Event::TimeChanged(time)) => {
+                    println!("Time changed to {:?}!!", time);
+                    current_time = time;
+
+                    status.iter_mut().for_each(|s| s.reset(time));
+
+                    let players = players.lock().await;
+                    players.broadcast(Packet::from_data(
+                        method::TIME_CHANGED,
+                        vec![
+                            BinaryData::from_i32(time as i32),
+                            BinaryData::from_i32(TIME_LENGTH[time as usize]),
+                        ]
+                    )).await;
+
+                    if time == Time::Night {
+                        Self::send_spawn(&tx, Event::MafiaKill);
+                    }
+
+                    let next_time = match time {
+                        Time::Night => Time::Day,
+                        Time::Day => Time::Vote,
+                        Time::Vote => Time::FinalObjection /* todo */,
+                        Time::FinalObjection => Time::YesnoVote,
+                        Time::YesnoVote => Time::Night,
+                        _ => Time::Null
+                    };
+
+                    let timer = timer.clone();
+                    let tx = tx.clone();
+                    tokio::spawn(async move {
+                        timer.run(TIME_LENGTH[time as usize]).await;
+                        tx.send(Event::TimeChanged(next_time)).await.unwrap_or(());
+                    });
+                },
+                Some(Event::IncreaseTime(idx)) => 'increase_time: {
+                    if current_time != Time::Day {
+                        break 'increase_time;
+                    }
+                    if status[idx].modified_time {
+                        break 'increase_time;
+                    }
+
+                    status[idx].modified_time = true;
+                    timer.increase(15).await;
+
+                    let players = players.lock().await;
+                    players.broadcast(Packet::from_data(method::INCREASE_TIME, vec![
+                        BinaryData::from_string(nicknames[idx].clone())
+                    ])).await;
+                },
+                Some(Event::DecreaseTime(idx)) => 'decrease_time: {
+                    if current_time != Time::Day {
+                        break 'decrease_time;
+                    }
+                    if status[idx].modified_time {
+                        break 'decrease_time;
+                    }
+
+                    status[idx].modified_time = true;
+                    timer.decrease(15).await;
+
+                    let players = players.lock().await;
+                    players.broadcast(Packet::from_data(method::DECREASE_TIME, vec![
+                        BinaryData::from_string(nicknames[idx].clone())
+                    ])).await;
+                },
+                Some(Event::Chat(idx, msg)) => {
+                    let my_job = job[idx].as_ref().expect("Sender does not exist");
+                    let chat_fn = my_job.chat(current_time, &status[idx]);
+
+                    let players = players.lock().await;
+                    let sender = &players[idx].as_ref().expect("Sender does not exist").nickname;
+                    players.iter().zip(job.iter()).zip(status.iter()).for_each(|((p, j), s)| {
+                        if let (Some(p), Some(j)) = (p, j) {
+                            let chat_type = chat_fn(j, s);
+                            if chat_type == ChatType::Null {
+                                return;
+                            }
+                            let p = p.clone();
+                            let msg = msg.clone();
+                            let sender = sender.clone();
+
                             tokio::spawn(async move {
-                                player.write_packet(Packet::from_data(method::MEMO, vec![
-                                    BinaryData::from_i32(target_idx as i32),
-                                    BinaryData::from_i32(job_id as i32)
+                                p.write_packet(Packet::from_data(method::CHAT, vec![
+                                    BinaryData::from_i32(chat_type as i32),
+                                    BinaryData::from_string(sender),
+                                    BinaryData::from_string(msg)
                                 ])).await.unwrap_or(());
                             });
                         }
-                    },
-                    Event::Close => {
-                        println!("Event::Close triggered, game finished");
-                        return Ok(());
-                    },
+                    });
+                },
+                Some(Event::Hand(my_idx, target_idx)) => {
+                    if job[target_idx].is_none() {
+                        continue;
+                    }
+
+                    let my_job = job[my_idx].as_ref().expect("Sender does not exist");
+                    let target_job = job[target_idx].as_ref().expect("Target does not exist");
+                    match my_job.option().hand_type {
+                        HandType::NoHand => (),
+                        HandType::FixedHand => {
+                            if status[my_idx].hand < usize::max_value() {
+                                continue;
+                            }
+                            if !my_job.is_valid_hand(current_time, target_job, &status[target_idx], target_idx) {
+                                continue;
+                            }
+
+                            status[my_idx].hand = target_idx;
+
+                            let vec = my_job.hand(current_time, target_job, &status[target_idx], my_idx, target_idx);
+                            let tx = tx.clone();
+
+                            let session = players.lock().await[my_idx].clone().expect("Session does not exist");
+                            tokio::spawn(async move {
+                                session.write_packet(Packet::from_data(method::HAND, vec![])).await.unwrap_or(())
+                            });
+
+                            tokio::spawn(async move {
+                                tx.send_all(vec).await.unwrap_or(());
+                            });
+                        },
+                        HandType::MovingHand => {
+                            if !my_job.is_valid_hand(current_time, target_job, &status[target_idx], target_idx) {
+                                continue;
+                            }
+                            status[my_idx].hand = target_idx;
+
+                            let session = players.lock().await[my_idx].clone().expect("Session does not exist");
+                            tokio::spawn(async move {
+                                session.write_packet(Packet::from_data(method::HAND, vec![])).await.unwrap_or(())
+                            });
+                        }
+                    }
+                },
+                Some(Event::Skill(skill_id, vec, receiver)) => {
+                    let players = players.lock().await;
+                    if let Some(player) = players[receiver].clone() {
+                        let nicknames = nicknames.clone();
+                        tokio::spawn(async move {
+                            player.write_packet(Packet::from_data(method::SKILL,
+                                std::iter::once(BinaryData::from_i32(skill_id))
+                                .chain(vec.into_iter()
+                                    .map(|s| match s {
+                                        GameString::Nickname(idx) => nicknames[idx].clone(),
+                                        GameString::Jobname(job) => job.into()
+                                    })
+                                    .map(|s| BinaryData::from_string(s))
+                                )
+                                .collect()
+                            )).await.unwrap_or(());
+                        });
+                    }
+                },
+                Some(Event::Memo(my_idx, target_idx)) => {
+                    let players = players.lock().await;
+                    if let Some(player) = players[my_idx].clone() {
+                        let job_id = job[target_idx].as_ref().expect("Target should be exist").option().job_id;
+                        tokio::spawn(async move {
+                            player.write_packet(Packet::from_data(method::MEMO, vec![
+                                BinaryData::from_i32(target_idx as i32),
+                                BinaryData::from_i32(job_id as i32)
+                            ])).await.unwrap_or(());
+                        });
+                    }
+                },
+                Some(Event::MafiaKill) => {
+
                 }
-            }
-            else {
-                println!("ClassicGame::event_loop finished!");
-                return Ok(());
+                Some(Event::Close) => {
+                    println!("Event::Close triggered, game finished");
+                    return Ok(());
+                },
+                None => {
+                    eprintln!("ClassicGame::event_loop error");
+                    return Ok(());
+                }
             }
         }
     }
