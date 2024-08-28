@@ -44,6 +44,18 @@ const SPECIAL_ARR: [JobList; 10] = [JobList::Couple, JobList::Soldier, JobList::
 ];
 const ASSIST_ARR: [JobList; 4] = [JobList::Spy, JobList::Beastman, JobList::Madam, JobList::Thief];
 
+trait EventSender {
+    async fn send_all(&self, events: Vec<Event>) -> Result<(), Box<dyn error::Error>>;
+}
+impl EventSender for Arc<mpsc::Sender<Event>> {
+    async fn send_all(&self, events: Vec<Event>) -> Result<(), Box<dyn error::Error>> {
+        for e in events {
+            self.send(e).await?;
+        }
+        Ok(())
+    }
+}
+
 pub struct ClassicGame {
     tx: Arc<mpsc::Sender<Event>>,
 }
@@ -244,12 +256,25 @@ impl ClassicGame {
                         match my_job.option().hand_type {
                             HandType::NoHand => (),
                             HandType::FixedHand => {
+                                if status[my_idx].hand < usize::max_value() {
+                                    continue;
+                                }
+                                if !my_job.is_valid_hand(current_time, target_job, &status[target_idx], target_idx) {
+                                    continue;
+                                }
+
+                                status[my_idx].hand = target_idx;
+
                                 let vec = my_job.hand(current_time, target_job, &status[target_idx], my_idx, target_idx);
                                 let tx = tx.clone();
+
+                                let session = players.lock().await[my_idx].clone().expect("Session does not exist");
                                 tokio::spawn(async move {
-                                    for e in vec {
-                                        tx.send(e).await.unwrap_or(());
-                                    }
+                                    session.write_packet(Packet::from_data(method::HAND, vec![])).await.unwrap_or(())
+                                });
+
+                                tokio::spawn(async move {
+                                    tx.send_all(vec).await.unwrap_or(());
                                 });
                             },
                             HandType::MovingHand => {

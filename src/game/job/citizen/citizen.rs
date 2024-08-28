@@ -4,8 +4,6 @@ use crate::game::{time::Time, event::Event};
 
 use super::super::{job::Job, option::{HandType, JobOption}, JobList, Team};
 
-use crate::method::skill;
-
 pub struct Citizen;
 
 impl Citizen {
