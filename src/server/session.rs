@@ -19,7 +19,7 @@ pub struct Session {
     pub nickname: String,
     room: Mutex<Option<Arc<Room>>>,
     room_manager: Arc<RoomManager>,
-    index: Mutex<usize>
+    index: Mutex<usize> /* todo: Atomic으로 변경 */
 }
 
 impl Session {
@@ -226,6 +226,12 @@ impl Session {
                         room.send(Event::Hand(*self.index.lock().await, target as usize)).await.unwrap_or(());
                     }
                 },
+                method::VOTE => {
+                    let target = packet.get(0).to_i32();
+                    if let Some(room) = self.room.lock().await.clone() {
+                        room.send(Event::Vote(*self.index.lock().await, target as usize)).await.unwrap_or(());
+                    }
+                }
                 _ => ()
             }
         }

@@ -1,6 +1,6 @@
 use std::fmt::{Display, Formatter};
 
-use citizen::{citizen::Citizen, police::Police};
+use citizen::{citizen::Citizen, police::Police, doctor::Doctor};
 use job::Job;
 use mafia::mafia::Mafia;
 
@@ -41,6 +41,7 @@ impl JobList {
             Self::Mafia => Box::new(Mafia::new()),
             Self::Citizen => Box::new(Citizen::new()),
             Self::Police => Box::new(Police::new()),
+            Self::Doctor => Box::new(Doctor::new()),
             _ => Box::new(Citizen::new())
         }
     }

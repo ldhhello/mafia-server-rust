@@ -6,8 +6,6 @@ mod room;
 mod game;
 mod timer;
 
-use native_tls::TlsStream;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 use std::error::Error;
 use std::sync::Arc;

@@ -91,6 +91,7 @@ impl ClassicGame {
         });
     }
     // 전체 게임 로직을 기술하는 함수이다.
+    // todo : 이거를 바깥으로 빼야 할 듯
     async fn event_loop(room: Arc<Room>, tx: Arc<mpsc::Sender<Event>>, mut rx: mpsc::Receiver<Event>) -> Result<(), Box<dyn error::Error>> {
         let players = room.players.clone();
         let mut job_list = Vec::new();
@@ -162,6 +163,32 @@ impl ClassicGame {
                 },
                 Some(Event::TimeChanged(time)) => {
                     println!("Time changed to {:?}!!", time);
+
+                    // 움직이는 손 직업들 능력 처리
+                    job.iter().zip(status.iter()).enumerate().for_each(|(idx, (my_job, status))| {
+                        if let (Some(my_job), Some(target_job)) = (my_job.as_ref(), job[status.hand].as_ref()) {
+                            let vec = my_job.hand(time, &target_job, status, idx, status.hand);
+                            let tx = tx.clone();
+                            tokio::spawn(async move {
+                                tx.send_all(vec).await.unwrap_or(())
+                            });
+                        }
+                    });
+
+                    if current_time == Time::Vote {
+                        println!("Vote time!");
+
+                        for (idx, s) in status.iter_mut().enumerate() {
+                            if let Some(job) = &job[idx] {
+                                if s.vote_hand == usize::max_value() {
+                                    continue;
+                                }
+                                // 이거 어케 하지 그럼
+                                status[s.vote_hand].vote_count += job.option().vote_right;
+                            }
+                        }
+                    }
+
                     current_time = time;
 
                     status.iter_mut().for_each(|s| s.reset(time));
@@ -176,6 +203,7 @@ impl ClassicGame {
                         ]
                     )).await;
 
+                    // 마피아 킬 트리거
                     if time == Time::Day {
                         Self::send_spawn(&tx, Event::MafiaKill);
                     }
@@ -361,7 +389,27 @@ impl ClassicGame {
                     Self::send_spawn(&tx, Event::Skill(skill::MAFIA_KILL, vec![
                         GameString::Nickname(mafia_gun)
                     ], usize::max_value()));
-                }
+
+                    Self::send_spawn(&tx, Event::SendStatus(mafia_gun));
+                },
+                Some(Event::SendStatus(p)) => {
+                    let players = players.lock().await;
+
+                    let life = status[p].life_status;
+                    // 성불 상태일 경우 죽은 걸로 화면에 띄워주기
+                    let life = if life == LifeStatus::Alive {LifeStatus::Alive} else {LifeStatus::Dead};
+                    players.broadcast(Packet::from_data(method::STATUS_CHANGED, vec![
+                        BinaryData::from_i32(p as i32),
+                        BinaryData::from_i32(life as i32)
+                    ])).await;
+                },
+                Some(Event::Vote(my_idx, target_idx)) => {
+                    if current_time != Time::Vote {
+                        continue;
+                    }
+
+                    status[my_idx].vote_hand = target_idx;
+                },
                 Some(Event::Close) => {
                     println!("Event::Close triggered, game finished");
                     return Ok(());
