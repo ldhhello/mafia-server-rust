@@ -15,7 +15,7 @@ impl Job for Mafia {
         JobOption {
             job_id: JobList::Mafia,
             team: Team::MafiaTeam,
-            hand_type: HandType::MovingHand,
+            hand_type: HandType::MafiaHand,
             vote_right: 1,
             shared_hand: true,
         }

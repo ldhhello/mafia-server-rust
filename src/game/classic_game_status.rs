@@ -7,6 +7,31 @@ pub enum LifeStatus {
     Seongbul
 }
 
+pub struct GlobalStatus {
+    pub mafia_gun: usize,
+}
+impl GlobalStatus {
+    pub fn new() -> Self {
+        Self {
+            mafia_gun: 0
+        }
+    }
+    pub fn reset(&mut self, time: Time) {
+        match time {
+            Time::Null => (),
+            Time::Night => {
+                self.mafia_gun = usize::max_value();
+            },
+            Time::Day => {
+            },
+            Time::Vote => {},
+            Time::FinalObjection => (),
+            Time::YesnoVote => (),
+            Time::End => ()
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct Status {
     pub modified_time: bool,

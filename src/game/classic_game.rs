@@ -2,7 +2,8 @@ use std::error;
 use std::sync::Arc;
 use async_trait::async_trait;
 use crate::game::time::TIME_LENGTH;
-use crate::method;
+use crate::method::{self, skill, SKILL};
+use crate::method::skill::SKILL_STRINGS;
 use crate::packet::binarydata::BinaryData;
 use crate::packet::Packet;
 use crate::room::room::Room;
@@ -19,7 +20,7 @@ use shuffle::irs::Irs;
 use mt19937::MT19937;
 use super::error::Error;
 use crate::room::player::Players;
-use super::classic_game_status::Status;
+use super::classic_game_status::{GlobalStatus, LifeStatus, Status};
 use crate::room::room::ChatType;
 
 use super::{Game, GameString};
@@ -95,6 +96,7 @@ impl ClassicGame {
         let mut job_list = Vec::new();
         let mut job = Vec::new();
         let mut status = vec![Status::default(); players.lock().await.len()];
+        let mut global_status = GlobalStatus::new();
 
         let nicknames: Arc<Vec<String>> = Arc::new(players.lock().await.iter().enumerate().map(|(idx, p)| {
             match p {
@@ -163,6 +165,7 @@ impl ClassicGame {
                     current_time = time;
 
                     status.iter_mut().for_each(|s| s.reset(time));
+                    global_status.reset(time);
 
                     let players = players.lock().await;
                     players.broadcast(Packet::from_data(
@@ -173,7 +176,7 @@ impl ClassicGame {
                         ]
                     )).await;
 
-                    if time == Time::Night {
+                    if time == Time::Day {
                         Self::send_spawn(&tx, Event::MafiaKill);
                     }
 
@@ -197,6 +200,9 @@ impl ClassicGame {
                     if current_time != Time::Day {
                         break 'increase_time;
                     }
+                    if status[idx].life_status != LifeStatus::Alive {
+                        break 'increase_time;
+                    }
                     if status[idx].modified_time {
                         break 'increase_time;
                     }
@@ -211,6 +217,9 @@ impl ClassicGame {
                 },
                 Some(Event::DecreaseTime(idx)) => 'decrease_time: {
                     if current_time != Time::Day {
+                        break 'decrease_time;
+                    }
+                    if status[idx].life_status != LifeStatus::Alive {
                         break 'decrease_time;
                     }
                     if status[idx].modified_time {
@@ -292,25 +301,40 @@ impl ClassicGame {
                             tokio::spawn(async move {
                                 session.write_packet(Packet::from_data(method::HAND, vec![])).await.unwrap_or(())
                             });
-                        }
+                        },
+                        HandType::MafiaHand => {
+                            if !my_job.is_valid_hand(current_time, target_job, &status[target_idx], target_idx) {
+                                continue;
+                            }
+                            status[my_idx].hand = target_idx;
+                            global_status.mafia_gun = target_idx;
+
+                            let session = players.lock().await[my_idx].clone().expect("Session does not exist");
+                            tokio::spawn(async move {
+                                session.write_packet(Packet::from_data(method::HAND, vec![])).await.unwrap_or(())
+                            });
+                        },
                     }
                 },
                 Some(Event::Skill(skill_id, vec, receiver)) => {
                     let players = players.lock().await;
-                    if let Some(player) = players[receiver].clone() {
-                        let nicknames = nicknames.clone();
+                    let packet = Packet::from_data(method::SKILL,
+                        std::iter::once(BinaryData::from_i32(skill_id))
+                        .chain(vec.into_iter()
+                            .map(|s| match s {
+                                GameString::Nickname(idx) => nicknames[idx].clone(),
+                                GameString::Jobname(job) => job.into()
+                            })
+                            .map(|s| BinaryData::from_string(s))
+                        )
+                        .collect()
+                    );
+                    if receiver == usize::max_value() {
+                        players.broadcast(packet).await;
+                    }
+                    else if let Some(player) = players[receiver].clone() {
                         tokio::spawn(async move {
-                            player.write_packet(Packet::from_data(method::SKILL,
-                                std::iter::once(BinaryData::from_i32(skill_id))
-                                .chain(vec.into_iter()
-                                    .map(|s| match s {
-                                        GameString::Nickname(idx) => nicknames[idx].clone(),
-                                        GameString::Jobname(job) => job.into()
-                                    })
-                                    .map(|s| BinaryData::from_string(s))
-                                )
-                                .collect()
-                            )).await.unwrap_or(());
+                            player.write_packet(packet).await.unwrap_or(());
                         });
                     }
                 },
@@ -327,7 +351,16 @@ impl ClassicGame {
                     }
                 },
                 Some(Event::MafiaKill) => {
+                    if global_status.mafia_gun == usize::max_value() {
+                        Self::send_spawn(&tx, Event::Skill(skill::NOTHING_HAPPENED, vec![], usize::max_value()));
+                        continue;
+                    }
+                    let mafia_gun = global_status.mafia_gun;
 
+                    status[mafia_gun].life_status = LifeStatus::Dead;
+                    Self::send_spawn(&tx, Event::Skill(skill::MAFIA_KILL, vec![
+                        GameString::Nickname(mafia_gun)
+                    ], usize::max_value()));
                 }
                 Some(Event::Close) => {
                     println!("Event::Close triggered, game finished");

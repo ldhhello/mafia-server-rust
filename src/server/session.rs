@@ -78,6 +78,13 @@ impl Session {
                     BinaryData::from_i32(string::ROOM_IS_FULL)
                 ])).await?;
             },
+            Err(room::Error::AlreadyStarted) => {
+                // 기존 C++ 구현체는 이런 상황에서 무시하고 아무 것도 하지 않는다.
+                // self.write_packet(Packet::from_data(method::ERROR, vec![
+                //     BinaryData::from_i32(string::ROOM_IS_FULL)
+                // ])).await?;
+                return Ok(());
+            }
             Err(e) => return Err(Box::new(e))
         }
 

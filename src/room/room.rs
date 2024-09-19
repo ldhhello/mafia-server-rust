@@ -112,6 +112,10 @@ impl Room {
         let mut players = self.players.lock().await;
         let player = players.iter_mut().find(|player| player.is_none());
 
+        if *self.is_gaming.lock().await {
+            return Err(error::Error::AlreadyStarted);
+        }
+
         if let Some(player) = player {
             *player = Some(session.clone());
             self.now_people.fetch_add(1, Ordering::Relaxed);
