@@ -188,49 +188,44 @@ impl Session {
                     }
                 },
                 method::INDEX => {
-                    if let Some(room) = self.room.lock().await.clone() {
-                        let Some(idx) = room.index(self.clone()).await
-                        else {
-                            panic!("Session is in room but isn't included in room");
-                        };
-                        self.write_packet(Packet::from_data(method::INDEX, vec![
-                            BinaryData::from_i32(idx as i32)
+                    let Some(room) = self.room.lock().await.clone() else { continue; };
+                    let Some(idx) = room.index(self.clone()).await else {
+                        panic!("Session is in room but isn't included in room");
+                    };
+                    self.write_packet(Packet::from_data(method::INDEX, vec![
+                        BinaryData::from_i32(idx as i32)
+                    ])).await?;
+                },
+                method::START_GAME => {
+                    let Some(room) = self.room.lock().await.clone() else { continue; };
+                    if !room.is_moderator(self.clone()).await {
+                        continue;
+                    }
+                    if let Err(room::Error::PlayerNotEnough) = room.start_game().await {
+                        self.write_packet(Packet::from_data(method::ERROR, vec![
+                            BinaryData::from_i32(method::string::PLAYER_NOT_ENOUGH)
                         ])).await?;
                     }
                 },
-                method::START_GAME => {
-                    if let Some(room) = self.room.lock().await.clone() {
-                        if !room.is_moderator(self.clone()).await {
-                            continue;
-                        }
-                        if let Err(room::Error::PlayerNotEnough) = room.start_game().await {
-                            self.write_packet(Packet::from_data(method::ERROR, vec![
-                                BinaryData::from_i32(method::string::PLAYER_NOT_ENOUGH)
-                            ])).await?;
-                        }
-                    }
-                },
                 method::INCREASE_TIME => {
-                    if let Some(room) = self.room.lock().await.clone() {
-                        room.send(Event::IncreaseTime(*self.index.lock().await)).await.unwrap_or(());
-                    }
+                    let Some(room) = self.room.lock().await.clone() else { continue; };
+                    room.send(Event::IncreaseTime(*self.index.lock().await)).await.unwrap_or(());
                 },
                 method::DECREASE_TIME => {
-                    if let Some(room) = self.room.lock().await.clone() {
-                        room.send(Event::DecreaseTime(*self.index.lock().await)).await.unwrap_or(());
-                    }
+                    let Some(room) = self.room.lock().await.clone() else { continue; };
+                    room.send(Event::DecreaseTime(*self.index.lock().await)).await.unwrap_or(());
                 },
                 method::HAND => {
                     let target = packet.get(0).to_i32();
-                    if let Some(room) = self.room.lock().await.clone() {
-                        room.send(Event::Hand(*self.index.lock().await, target as usize)).await.unwrap_or(());
-                    }
+                    let Some(room) = self.room.lock().await.clone() else { continue; };
+
+                    room.send(Event::Hand(*self.index.lock().await, target as usize)).await.unwrap_or(());
                 },
                 method::VOTE => {
                     let target = packet.get(0).to_i32();
-                    if let Some(room) = self.room.lock().await.clone() {
-                        room.send(Event::Vote(*self.index.lock().await, target as usize)).await.unwrap_or(());
-                    }
+                    let Some(room) = self.room.lock().await.clone() else { continue; };
+
+                    room.send(Event::Vote(*self.index.lock().await, target as usize)).await.unwrap_or(());
                 }
                 _ => ()
             }

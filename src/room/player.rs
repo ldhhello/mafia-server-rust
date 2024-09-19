@@ -24,49 +24,49 @@ pub trait Players {
 impl Players for Vec<Option<Arc<Session>>> {
     async fn broadcast(&self, packet: Packet) {
         self.iter().for_each(|session| {
-            if let Some(session) = session {
-                let packet = packet.clone();
-                let session = session.clone();
-                tokio::spawn(async move {
-                    if let Err(e) = session.write_packet(packet).await {
-                        eprintln!("Error while broadcasting: {}", e);
-                    }
-                });
-            }
+            let Some(session) = session else { return };
+
+            let packet = packet.clone();
+            let session = session.clone();
+            tokio::spawn(async move {
+                if let Err(e) = session.write_packet(packet).await {
+                    eprintln!("Error while broadcasting: {}", e);
+                }
+            });
         });
     }
     async fn broadcast_if<F>(&self, packet: Packet, condition: F)
     where F: (Fn(usize, Arc<Session>) -> bool) + std::marker::Send {
         self.iter().enumerate().for_each(|(idx, session)| {
-            if let Some(session) = session {
-                if !condition(idx, session.clone()) {
-                    return;
-                }
+            let Some(session) = session else { return };
 
-                let packet = packet.clone();
+            if !condition(idx, session.clone()) {
+                return;
+            }
+
+            let packet = packet.clone();
+            let session = session.clone();
+            tokio::spawn(async move {
+                if let Err(e) = session.write_packet(packet).await {
+                    eprintln!("Error while broadcasting: {}", e);
+                }
+            });
+        });
+    }
+    async fn broadcast_each<F>(&self, packet: F)
+    where F: (Fn(usize, Arc<Session>) -> Option<Packet>) + std::marker::Send {
+        self.iter().enumerate().for_each(|(idx, session)| {
+            let Some(session) = session else { return };
+
+            let packet = packet(idx, session.clone());
+
+            if let Some(packet) = packet {
                 let session = session.clone();
                 tokio::spawn(async move {
                     if let Err(e) = session.write_packet(packet).await {
                         eprintln!("Error while broadcasting: {}", e);
                     }
                 });
-            }
-        });
-    }
-    async fn broadcast_each<F>(&self, packet: F)
-    where F: (Fn(usize, Arc<Session>) -> Option<Packet>) + std::marker::Send {
-        self.iter().enumerate().for_each(|(idx, session)| {
-            if let Some(session) = session {
-                let packet = packet(idx, session.clone());
-
-                if let Some(packet) = packet {
-                    let session = session.clone();
-                    tokio::spawn(async move {
-                        if let Err(e) = session.write_packet(packet).await {
-                            eprintln!("Error while broadcasting: {}", e);
-                        }
-                    });
-                }
             }
         });
     }
