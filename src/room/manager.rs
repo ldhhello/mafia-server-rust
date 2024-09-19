@@ -60,10 +60,9 @@ impl RoomManager {
         // 나중에 효율적으로 바꿀 예정
         for room in &self.rooms {
             let room = room.lock().await;
-            if room.is_none() {
-                continue;
-            }
-            let info = room.as_ref().unwrap().info().await;
+            let Some(room) = room.as_ref() else { continue };
+
+            let info = room.info().await;
             if info.now_people > 0 {
                 res.push(info);
             }
